@@ -251,8 +251,9 @@ exports.signup = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '2 days' });
+    const message= role === 'class_owner' || role === 'admin' ? 'User registered successfully. Please complete the signup process' : 'User registered successfully';
 
-    res.status(201).json({ message: 'User registered successfully', token });
+    res.status(201).json({ message: message, token });
   } catch (error) {
     console.log(error);
     //delete user if registration fails
