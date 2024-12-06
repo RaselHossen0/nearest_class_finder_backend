@@ -17,7 +17,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const mediaRoutes = require('./routes/mediaRoute'); // Import media routes
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 
 // Middleware
 app.use(express.json());

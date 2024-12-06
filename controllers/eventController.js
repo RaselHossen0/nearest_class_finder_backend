@@ -102,6 +102,19 @@ exports.deleteEvent = async (req, res) => {
   }
 };
 
+//get events for a class
+exports.getEventsForClass = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const events = await Event.findAll({ where: { classId }, include: EventMedia });
+
+    if (events.length === 0) return res.status(404).json({ error: 'No events found for this class' });
+
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve events' });
+  }
+};
 
 /**
  * @swagger
@@ -301,4 +314,34 @@ exports.deleteEvent = async (req, res) => {
  *         eventId:
  *           type: integer
  *           description: The ID of the associated event
+ */
+
+/**
+ * @swagger
+ * /events/class/{classId}:
+ *   get:
+ *     summary: Retrieve a list of events for a class
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: The class ID
+ *     responses:
+ *       200:
+ *         description: A list of events
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Event'
+ *       404:
+ *         description: No events found for this class
+ *       500:
+ *         description: Failed to retrieve events
  */
