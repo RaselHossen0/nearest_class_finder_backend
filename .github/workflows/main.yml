@@ -22,9 +22,7 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # Optional: Build step if needed
-      - name: Build Application
-        run: npm run build
+
 
       - name: Set up SSH
         env:
