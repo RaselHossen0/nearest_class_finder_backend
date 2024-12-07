@@ -3,84 +3,113 @@ name: Deploy Node.js Application to Azure Ubuntu Server
 on:
   push:
     branches:
-      - main  # This workflow will trigger when you push to the 'main' branch. Change this if needed.
+      - main  # Trigger on pushes to main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-            node-version: '18.18.0'  # Set the Node.js version your app uses.
+          node-version: '18.18.0'
+          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install Dependencies
+        run: npm ci
 
-      # - name: Build the application
-      #   run: npm run build  # Modify this if your app doesn't need to be built.
+      # Optional: Build step if needed
+      # - name: Build Application
+      #   run: npm run build
 
-      - name: Prepare SSH Key
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
+          # Create SSH directory
+          mkdir -p ~/.ssh
+          
+          # Write SSH key
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          
+          # Set correct permissions
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Add server to known hosts
+          ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
+          
+          # Start SSH agent
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_rsa
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-add -l
-          ssh-add ~/.ssh/id_rsa
-          ssh -vvv -i ~/.ssh/id_rsa ubuntu@3.84.5.105
 
-        shell: bash
-
-      - name: Add Server to Known Hosts
-        run: |
-          ssh-keyscan -H 3.84.5.105 >> ~/.ssh/known_hosts
-        shell: bash
-
-      - name: Deploy to Azure Ubuntu Server
+      - name: Deploy to Server
         env:
-          DB_USER: ${{ env.DB_USER }}
-          DB_PASS: ${{ env.DB_PASS }}
-          DB_HOST: ${{ env.DB_HOST || '127.0.0.1' }}
-          DB_NAME: ${{ env.DB_NAME }}
-          PORT   : ${{ env.PORT  || 8000}}
-          JWT_SECRET: ${{ env.JWT_SECRET }}
-          # EMAIL_USER : ${{ env.EMAIL_USER }}
-          # EMAIL_PASS : ${{ env.EMAIL_PASS }}
+          # Application Environment Variables
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          PORT: ${{ secrets.PORT }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          
+          # Server Details
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          APP_DIR: ${{ secrets.APP_DIRECTORY }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@3.84.5.105 << EOF
-            # Navigate to your app's directory
-            cd /home/ubuntu/nearest_class_finder_backend
-
-            ls -la
-            pwd 
-
-            # Pull the latest changes from GitHub
-            git reset --hard
-            git pull origin main --force
-
-            # Install any new dependencies
-            npm install
-
-            # If you have environment variables, create/update .env file (optional)
-            echo "DB_USER=${DB_USER}" > .env
-            echo "DB_PASS=${DB_PASS}" >> .env
-            echo "DB_HOST=${DB_HOST}" >> .env
-            echo "DB_NAME=${DB_NAME}" >> .env
-            echo "PORT = ${PORT} " >> .env
-            echo "JWT_SECRET=${JWT_SECRET}" >> .env
-            # echo "EMAIL_USER=${EMAIL_USER}" >> .env
-            # echo "EMAIL_PASS=${EMAIL_PASS}" >> .env
-
-            # Restart the Node.js application (using pm2 or another process manager)
-            pm2 restart nearest_class_finder_backend
-
-            # If MySQL is involved, ensure the database is running
-            sudo systemctl restart mysql
-            sudo systemctl restart nginx
+          # Deploy script with comprehensive error handling
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa $SERVER_USER@$SERVER_HOST << 'EOF'
+            # Exit on any error
+            set -e
+            
+            # Navigate to application directory
+            cd $APP_DIR
+            
+            # Ensure git repository is up to date
+            git fetch origin
+            git reset --hard origin/main
+            
+            # Install dependencies
+            npm ci
+            
+            # Create or update .env file
+            cat > .env << EOL
+            DB_USER=$DB_USER
+            DB_PASS=$DB_PASS
+            DB_HOST=$DB_HOST
+            DB_NAME=$DB_NAME
+            PORT=$PORT
+            JWT_SECRET=$JWT_SECRET
+            EOL
+            
+            # Ensure PM2 is installed
+            npm install -g pm2 || true
+            
+            # Stop existing process if running
+            pm2 delete nearest_class_finder_backend || true
+            
+            # Start application with PM2
+            pm2 start app.js --name nearest_class_finder_backend
+            
+            # Restart services
+            sudo systemctl restart mysql || echo "MySQL restart failed"
+            sudo systemctl restart nginx || echo "Nginx restart failed"
+            
+            # List running processes
+            pm2 list
           EOF
+
+      - name: Notify on Failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: Deployment failed for ${{ github.repository }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
