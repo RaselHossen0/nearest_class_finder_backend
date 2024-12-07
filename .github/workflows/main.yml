@@ -24,6 +24,11 @@ jobs:
 
       - name: Start SSH agent
         run: eval "$(ssh-agent -s)"
+      - name: Debug SSH Agent
+        run: ssh-agent -s
+      - name: Check SSH Agent
+        run: ps aux | grep ssh-agent
+      
       
       - name: Add SSH key
         env:
