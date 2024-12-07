@@ -26,45 +26,47 @@ jobs:
       # - name: Build Application
       #   run: npm run build
 
-      - name: Set up SSH
-        env:
-          SSH_PRIVATE_KEY: ${{ vars.SSH_PRIVATE_KEY }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
-          SERVER_USER: ${{ vars.SERVER_USER }}
-        run: |
-          # Create SSH directory
-          mkdir -p ~/.ssh
+      # - name: Set up SSH
+      #   env:
+      #     SSH_PRIVATE_KEY: ${{ vars.SSH_PRIVATE_KEY }}
+      #     SERVER_HOST: ${{ vars.SERVER_HOST }}
+      #     SERVER_USER: ${{ vars.SERVER_USER }}
+      #   run: |
+      #     # Create SSH directory
+      #     mkdir -p ~/.ssh
           
-          # Write SSH key
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+      #     # Write SSH key
+      #     echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           
-          # Set correct permissions
-          chmod 600 ~/.ssh/id_rsa
+      #     # Set correct permissions
+      #     chmod 600 ~/.ssh/id_rsa
           
-          # Add server to known hosts
-          ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
+      #     # Add server to known hosts
+      #     ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
           
-          # Start SSH agent
-          eval "$(ssh-agent -s)"
-          ssh-add ~/.ssh/id_rsa
+      #     # Start SSH agent
+      #     eval "$(ssh-agent -s)"
+      #     ssh-add ~/.ssh/id_rsa
 
       - name: Deploy to Server
         env:
           # Application Environment Variables
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASS: ${{ secrets.DB_PASS }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          PORT: ${{ secrets.PORT }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DB_USER: ${{ vars.DB_USER }}
+          DB_PASS: ${{ vars.DB_PASS }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          PORT: ${{ vars.PORT }}
+          JWT_SECRET: ${{ vars.JWT_SECRET }}
           
           # Server Details
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          APP_DIR: ${{ secrets.APP_DIRECTORY }}
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_USER: ${{ vars.SERVER_USER }}
+          APP_DIR: 'nearest-class-finder-backend'
+          
+          SSH_PRIVATE_KEY: ${{ vars.SSH_PRIVATE_KEY }}
         run: |
           # Deploy script with comprehensive error handling
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa $SERVER_USER@$SERVER_HOST << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i $SSH_PRIVATE_KEY $SERVER_USER@$SERVER_HOST << 'EOF'
             # Exit on any error
             set -e
             
