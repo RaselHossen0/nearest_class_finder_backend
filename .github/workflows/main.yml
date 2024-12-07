@@ -29,6 +29,10 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          ssh-add -l
+          ssh-add ~/.ssh/id_rsa
+          ssh -vvv -i ~/.ssh/id_rsa ubuntu@3.84.5.105
+
         shell: bash
 
       - name: Add Server to Known Hosts
