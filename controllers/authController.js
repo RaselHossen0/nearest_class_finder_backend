@@ -21,7 +21,6 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-
 // API Endpoint
 exports.completeSignup = [
   upload.fields([
@@ -35,7 +34,7 @@ exports.completeSignup = [
     const transaction = await sequelize.transaction(); // Use transaction for atomicity
     try {
       const {
-        userId,
+        email,
         mobileNumber,
         alternateMobileNumber,
         aadhaarCardNumber,
@@ -51,7 +50,6 @@ exports.completeSignup = [
 
       // Validate required fields
       if (
-        !userId ||
         !mobileNumber ||
         !aadhaarCardNumber ||
         !panCardNumber ||
@@ -63,24 +61,35 @@ exports.completeSignup = [
         !coordinates ||
         !categoryId
       ) {
-        return res.status(400).json({ error: 'Missing required fields or files' });
+        return res.status(200).json({ error: 1, message: 'Missing required fields or files' });
       }
 
       // Check if the user exists and is not already registered as a class owner
-      const user = await User.findByPk(userId);
+      const user = await User.findOne({ where: { email } });
       if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
+        return res.status(200).json({ error: 1, message: 'User not found' });
+      } 
+      const userId = user.id;
+      console.log(userId);  
       const existingClassOwner = await ClassOwner.findOne({ where: { userId } });
       if (existingClassOwner) {
-        return res.status(400).json({ error: 'Class owner already exists' });
+        return res.status(200).json({ error: 1, message: 'Class owner already exists' });
       }
+     
 
       // Check if the category is valid
       const category = await Category.findByPk(categoryId);
       if (!category) {
-        return res.status(400).json({ error: 'Invalid category' });
+        return res.status(200).json({ error: 1, message: 'Invalid category' });
+      }
+      //check duplicacy of aadhar card number and pan card number
+      const aadharCard = await ClassOwner.findOne({ where: { aadhaarCardNumber } });
+      if (aadharCard) {
+        return res.status(200).json({ error: 1, message: 'Aadhar card number already exists' });
+      }
+      const panCard = await ClassOwner.findOne({ where: { panCardNumber } });
+      if (panCard) {
+        return res.status(200).json({ error: 1, message: 'Pan card number already exists' });
       }
 
       // Create ClassOwner record
@@ -102,7 +111,7 @@ exports.completeSignup = [
       const parsedCoordinates = coordinates.split(',').map(coord => parseFloat(coord.trim()));
       console.log(parsedCoordinates);
       if (parsedCoordinates.length !== 2 || isNaN(parsedCoordinates[0]) || isNaN(parsedCoordinates[1])) {
-        return res.status(400).json({ error: 'Invalid coordinates format' });
+        return res.status(200).json({ error: 1, message: 'Invalid coordinates format' });
       }
 
       // Create the class record
@@ -124,18 +133,109 @@ exports.completeSignup = [
 
       await transaction.commit(); // Commit transaction
 
-      res.status(201).json({
-        message: 'Class owner signup and class creation completed successfully',
+      res.status(200).json({
+        error: 0,
+        message: 'Your class is successfully created. Please wait for admin approval.',
         classOwner,
         newClass,
       });
     } catch (error) {
       await transaction.rollback(); // Rollback transaction in case of error
       console.error(error);
-      res.status(500).json({ error: `Failed to complete signup: ${error.message}` });
+      res.status(200).json({ error: 1, message: `Failed to complete signup: ${error.message}` });
     }
   },
 ];
+
+exports.signup = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    //check if user already exists
+    const userOld = await User.findOne({ where: { email } });
+    if (userOld) {
+        return res.status(200).json({ error: 1, message: 'User already exists' });
+    }
+
+    //hash password
+    const hashedPassword = await argon2.hash(password);
+    let adminVerified = true;
+
+    // console.log(hashedPassword);
+    // Create a new user
+    if (role === 'class_owner' || role === 'admin') {
+     adminVerified = false;
+     
+    }
+    const user = await User.create({ name, email,password: hashedPassword, role,adminVerified });
+
+    // Generate JWT token
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '2 days' });
+    const message= role === 'class_owner' || role === 'admin' ? 'User registered successfully. Please complete the signup process' : 'User registered successfully';
+
+    res.status(200).json({ error: 0, message: message, token });
+  } catch (error) {
+    console.log(error);
+    //delete user if registration fails
+    await User.destroy({ where: { email: req.body.email } });
+    res.status(200).json({ error: 1, message: `User registration failed  ${error}` });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(200).json({ error: 1, message: 'User not found' });
+    }
+
+    // Verify password
+    if (!(await argon2.verify(user.password, password))) {
+      return res.status(200).json({ error: 1, message: 'Invalid email or password' });
+    }
+
+    // Check if ClassOwner is verified
+    if (user.role === 'class_owner' && !user.adminVerified) {
+      return res.status(200).json({ error: 1, message: 'Your account is under review. Please wait for admin approval.' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '2 days' });
+
+    res.status(200).json({ error: 0, message: 'Login successful', token });
+  } catch (error) {
+    console.error(error);
+    res.status(200).json({ error: 1, message: 'Login failed' });
+  }
+};
+
+exports.getUserDetails = async (req, res) => {
+  try {
+    const token = req.headers.authorization.split(' ')[1];
+    console.log(token);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findByPk(decoded.id, {
+      attributes: { exclude: ['password'] },
+    });
+
+    if (!user) {
+      return res.status(200).json({ error: 1, message: 'User not found' });
+    }
+    //if user is class owner then fetch class owner details
+    if (user.role === 'class_owner') {
+      const classOwner = await ClassOwner.findOne({ where: { userId: user.id } });
+      if (classOwner) {
+        user.classOwner = classOwner;
+      }
+    }
+
+    res.status(200).json({ error: 0, user });
+  } catch (error) {
+    console.error(error);
+    res.status(200).json({ error: 1, message: 'Failed to get user details' });
+  }
+};
 
 /**
  * @swagger
@@ -150,9 +250,9 @@ exports.completeSignup = [
  *           schema:
  *             type: object
  *             properties:
- *               userId:
+ *               email:
  *                 type: string
- *                 description: The user ID
+ *                 description: The email address of the user
  *               mobileNumber:
  *                 type: string
  *                 description: The mobile number
@@ -228,63 +328,33 @@ exports.completeSignup = [
  *       500:
  *         description: Failed to complete signup
  */
-exports.signup = async (req, res) => {
-  try {
-    const { name, email, password, role } = req.body;
-    //check if user already exists
-    const userOld = await User.findOne({ where: { email } });
-    if (userOld) {
-        return res.status(400).json({ error: 'User already exists' });
-    }
 
-    //hash password
-    const hashedPassword = await argon2.hash(password);
-    let adminVerified = true;
-
-    // console.log(hashedPassword);
-    // Create a new user
-    if (role === 'class_owner' || role === 'admin') {
-     adminVerified = false;
-     
-    }
-    const user = await User.create({ name, email,password: hashedPassword, role,adminVerified });
-
-    // Generate JWT token
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '2 days' });
-    const message= role === 'class_owner' || role === 'admin' ? 'User registered successfully. Please complete the signup process' : 'User registered successfully';
-
-    res.status(201).json({ message: message, token });
-  } catch (error) {
-    console.log(error);
-    //delete user if registration fails
-    await User.destroy({ where: { email: req.body.email } });
-    res.status(500).json({ error: `User registration failed  ${error}` });
-  }
-};
-
-exports.login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ where: { email } });
-   
-    // console.log(await argon2.verify( user.password, password));
-    if (!user){
-      return res.status(401).json({ error: 'User not found ' });
-    }
-
-    if (!user || !(await argon2.verify( user.password, password))) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-   const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '2 days' });
-
-    res.json({ message: 'Login successful', token });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: 'Login failed' });
-  }
-};
-
+/**
+ * @swagger
+ * /auth/user-details:
+ *   get:
+ *     summary: Get user details by token
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   description: The user details
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Failed to get user details
+ */
 
 /**
  * @swagger

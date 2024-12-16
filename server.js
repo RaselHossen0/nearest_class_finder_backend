@@ -15,7 +15,7 @@ const eventRoutes = require('./routes/event');
 const chatRoutes = require('./routes/chat');
 const categoryRoutes = require('./routes/categoryRoutes');
 const mediaRoutes = require('./routes/mediaRoute'); // Import media routes
-
+const adminRoutes = require('./routes/admin/adminRoutes');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -38,6 +38,7 @@ app.use('/chat', chatRoutes);
 app.use('/categories', categoryRoutes);
 app.use('/media', mediaRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/admin', adminRoutes);
 
 
 

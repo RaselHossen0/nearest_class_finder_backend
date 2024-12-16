@@ -2,22 +2,53 @@
 const Class = require('../models/Class');
 const Category = require('../models/Category');
 const Media = require('../models/Media');
+const ClassOwner = require('../models/ClassOwner');
+const User = require('../models/User');
 
-// GET all classes
-exports.getClasses = async (req, res) => {
+
+exports.getAllClasses = async (req, res) => {
   try {
-    const classes = await Class.findAll({
-      include: [Category, Media]  // Include associated Category and Media
+    console.log('Get all classes');
+    const { page = 1, limit = 10, search = '' } = req.query; // Pagination and search query
+    const offset = (page - 1) * limit;
+   
+    // const allClasses = await ClassOwner.findAll();
+    // console.log(allClasses);
+
+    // Fetch classes with optional search
+    const { count, rows: classes } = await ClassOwner.findAndCountAll({
+      // where: {
+      //   // Search by mobile number or experience (example)
+      //   name: { [Op.like]: `%${search}%` }
+
+      // },
+      include: [
+        {
+          model: User, // Include associated User data
+          attributes: ['id', 'name', 'email'], // Only fetch selected User attributes
+        },
+      ],
+      offset,
+      limit: parseInt(limit),
     });
-    res.json(classes);
+
+
+    return res.status(200).json({
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / limit),
+      classes,
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to retrieve classes' });
+    console.error('Error fetching classes:', error);
+    res.status(500).json({ error: `Failed to fetch classes: ${error.message}` });
   }
 };
 
 // GET class by ID
 exports.getClassById = async (req, res) => {
   try {
+    console.log('Get class by ID');
     const { id } = req.params;
     const classDetail = await Class.findByPk(id, {
       include: [Category, Media]  // Include associated Category and Media
@@ -122,6 +153,7 @@ exports.updateClass = async (req, res) => {
 exports.deleteClass = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Delete class by ID');
 
     // Delete associated media
     await Media.destroy({ where: { classId: id } });
@@ -179,36 +211,6 @@ exports.searchClasses = async (req, res) => {
  *   description: API for managing classes, categories, and media (photos, videos, reels)
  */
 
-/**
- * @swagger
- * /classes:
- *   get:
- *     summary: "Get all classes"
- *     description: "Retrieve a list of all available classes."
- *     tags:
- *       - "Classes"
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: "List of classes retrieved successfully"
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: "#/definitions/Class"
- *       500:
- *         description: "Failed to retrieve classes"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Failed to retrieve classes"
- */
 
 /**
  * @swagger
@@ -440,6 +442,98 @@ exports.searchClasses = async (req, res) => {
  *                 $ref: "#/definitions/Class"
  *       500:
  *         description: "Failed to search classes"
+ */
+
+/**
+ * @swagger
+ * /classes/owners/all:
+ *   get:
+ *     summary: Get All Classes
+ *     description: Retrieve all ClassOwner records with optional pagination and search.
+ *     tags:
+ *       - Classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: page
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination.
+ *       - name: limit
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of records per page.
+ *       - name: search
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Search keyword for filtering classes by mobile number.
+ *     responses:
+ *       200:
+ *         description: List of ClassOwner records.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total:
+ *                   type: integer
+ *                   example: 100
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 10
+ *                 classes:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       userId:
+ *                         type: integer
+ *                         example: 5
+ *                       mobileNumber:
+ *                         type: string
+ *                         example: "1234567890"
+ *                       alternateMobileNumber:
+ *                         type: string
+ *                         example: "0987654321"
+ *                       experience:
+ *                         type: string
+ *                         example: "5 years"
+ *                       user:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                             example: 5
+ *                           name:
+ *                             type: string
+ *                             example: "John Doe"
+ *                           email:
+ *                             type: string
+ *                             example: "john.doe@example.com"
+ *       500:
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Failed to fetch classes: An unexpected error occurred."
  */
 
 
