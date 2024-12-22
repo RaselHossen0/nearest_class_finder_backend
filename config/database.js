@@ -1,4 +1,6 @@
 const { Sequelize } = require('sequelize');
+
+
 require('dotenv').config();
 
 
@@ -7,7 +9,11 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
   dialect: 'mysql',
 });
 // if (process.env.NODE_ENV === 'development') {
-//    sequelize.sync({ alter: true, force: true });
+//    sequelize.sync(
+//     { alter: true,
+//         // force: true
+//       }
+//   );
 // }
 
 module.exports = sequelize;

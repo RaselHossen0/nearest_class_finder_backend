@@ -1,9 +1,22 @@
 const express = require('express');
-const { getChatHistory, startConversation } = require('../controllers/chatController');
+const chatController = require('../controllers/chatController');
 const verifyToken = require('../middleware/middleware');
 const router = express.Router();
 
-router.get('/:userId', verifyToken, getChatHistory);     // Get chat history for a user
-router.post('/', verifyToken, startConversation);        // Start a new conversation
+
+
+
+
+
+
+
+
+router.post('/send', chatController.sendMessage);
+router.put('/read/:messageId', chatController.markAsRead);
+
+router.get('/messages/chat/:chatId', chatController.getMessages);
+
+router.post('/create', chatController.createChat);
+router.get('/user/:userId', chatController.getChats);
 
 module.exports = router;

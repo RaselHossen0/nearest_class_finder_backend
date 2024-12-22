@@ -1,22 +1,36 @@
+const socketIo = require('socket.io');
+const Message = require('../models/Message'); // Adjust the path as necessary
 
-io.on('connection', (socket) => {
-    console.log('New client connected');
-  
-    socket.on('joinRoom', (chatId) => {
-      socket.join(chatId);  // User joins a specific chat room
+const setupSocket = (server) => {
+  const io = socketIo(server, {
+    cors: { origin: '*' },
+  });
+
+  io.on('connection', (socket) => {
+    console.log(`User connected: ${socket.id}`);
+
+    socket.on('joinRoom', ({ chatId }) => {
+      socket.join(chatId);
+      console.log(`User joined chat: ${chatId}`);
     });
-  
-    socket.on('message', async (data) => {
-      const { chatId, senderId, content } = data;
-  
-      // Save message to the database
-      const message = await Message.create({ chatId, senderId, content });
-      
-      // Emit the message to users in the chat room
-      io.to(chatId).emit('newMessage', message);
+
+    socket.on('sendMessage', async (message) => {
+      try {
+        const savedMessage = await Message.create(message);
+        io.to(message.chatId).emit('newMessage', {error: null, message: savedMessage});
+        // console.log('New message:', savedMessage);
+      } catch (error) {
+        console.error('Error saving message:', error);
+        io.to(message.chatId).emit('newMessage', { error: error.message });
+      }
     });
-  
+
     socket.on('disconnect', () => {
-      console.log('Client disconnected');
+      console.log('User disconnected');
     });
   });
+
+  return io;
+};
+
+module.exports = setupSocket;

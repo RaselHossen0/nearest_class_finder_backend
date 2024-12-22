@@ -8,6 +8,8 @@ const Chat = sequelize.define('Chat', {
 
 Chat.associate = (models) => {
   Chat.hasMany(models.Message, { onDelete: 'CASCADE' });
+  Chat.belongsTo(models.User, { as: 'User', foreignKey: 'userId' });
+  Chat.belongsTo(models.User, { as: 'ClassOwner', foreignKey: 'classOwnerId' });
 };
 
 module.exports = Chat;

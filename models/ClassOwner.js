@@ -1,6 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const User = require('./User');
+const Class = require('./Class');
 
 const ClassOwner = sequelize.define('ClassOwner', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -24,10 +25,23 @@ const ClassOwner = sequelize.define('ClassOwner', {
   aadhaarCardFile: { type: DataTypes.STRING, allowNull: false },
   panCardFile: { type: DataTypes.STRING, allowNull: false },
   photographFile: { type: DataTypes.STRING, allowNull: false },
-  certificatesFile: { type: DataTypes.STRING, allowNull: true }
+  certificatesFile: { type: DataTypes.STRING, allowNull: true },
+  classId: { 
+    type: DataTypes.INTEGER, 
+    allowNull: false,
+    references: {
+      model: Class, // References the Class model
+      key: 'id',   // Key in the Class model to reference
+    },
+    onUpdate: 'CASCADE', // Update on parent update
+    onDelete: 'CASCADE', // Delete on parent delete
+  },
 });
 
 // Associate the models
 ClassOwner.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+ClassOwner.belongsTo(Class, { foreignKey: 'classId', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+Class.hasOne(ClassOwner, { foreignKey: 'classId', onDelete: 'CASCADE' });
+
 
 module.exports = ClassOwner;

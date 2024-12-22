@@ -1,5 +1,6 @@
 // controllers/CategoryController.js
 const Category = require('../models/Category');
+const upload = require('../config/upload');
 
 // Get all categories
 exports.getCategories = async (req, res) => {
@@ -27,40 +28,49 @@ exports.getCategoryById = async (req, res) => {
 };
 
 // Create a new category
-exports.createCategory = async (req, res) => {
-  try {
-    const { name } = req.body;
+exports.createCategory = [
+  upload.single('logo'), // Use multer to handle the uploaded file
+  async (req, res) => {
+    try {
+      const { name } = req.body;
+      const logo = req.file ? `/uploads/${req.file.filename}` : null;
 
-    // Check if category already exists
-    const existingCategory = await Category.findOne({ where: { name } });
-    if (existingCategory) {
-      return res.status(400).json({ error: 'Category already exists' });
+      // Check if category already exists
+      const existingCategory = await Category.findOne({ where: { name } });
+      if (existingCategory) {
+        return res.status(400).json({ error: 'Category already exists' });
+      }
+
+      const newCategory = await Category.create({ name, logo });
+      res.status(201).json(newCategory);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create category' });
     }
-
-    const newCategory = await Category.create({ name });
-    res.status(201).json(newCategory);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create category' });
-  }
-};
+  },
+];
 
 // Update an existing category
-exports.updateCategory = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name } = req.body;
+exports.updateCategory = [
+  upload.single('logo'), // Use multer to handle the uploaded file
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+      const logo = req.file ? `/uploads/${req.file.filename}` : null;
 
-    const category = await Category.findByPk(id);
-    if (!category) return res.status(404).json({ error: 'Category not found' });
+      const category = await Category.findByPk(id);
+      if (!category) return res.status(404).json({ error: 'Category not found' });
 
-    category.name = name;
-    await category.save();
+      category.name = name || category.name;
+      if (logo) category.logo = logo; // Update logo only if a new file is uploaded
+      await category.save();
 
-    res.json({ message: 'Category updated successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update category' });
-  }
-};
+      res.json({ message: 'Category updated successfully', category });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update category' });
+    }
+  },
+];
 
 // Delete a category
 exports.deleteCategory = async (req, res) => {
@@ -76,6 +86,24 @@ exports.deleteCategory = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete category' });
   }
 };
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Category:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           example: 1
+ *         name:
+ *           type: string
+ *           example: "Fitness"
+ *         logo:
+ *           type: string
+ *           description: URL of the category logo
+ *           example: "/uploads/logo-fitness.png"
+ */
 /**
  * @swagger
  * /categories/{id}:
@@ -201,19 +229,23 @@ exports.deleteCategory = async (req, res) => {
  * /categories:
  *   post:
  *     summary: Create a new category
- *     description: Create a new category with the provided name.
+ *     description: Create a new category with the provided name and optional logo upload.
  *     tags:
  *       - Categories
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
  *               name:
  *                 type: string
  *                 example: New Category
+ *               logo:
+ *                 type: string
+ *                 format: binary
+ *                 description: Upload an image file for the category logo
  *     responses:
  *       201:
  *         description: Category created successfully
@@ -242,13 +274,12 @@ exports.deleteCategory = async (req, res) => {
  *                   type: string
  *                   example: Failed to create category
  */
-
 /**
  * @swagger
  * /categories/{id}:
  *   put:
  *     summary: Update an existing category
- *     description: Update the name of an existing category by its ID.
+ *     description: Update the name and/or logo of an existing category by its ID.
  *     tags:
  *       - Categories
  *     parameters:
@@ -261,13 +292,18 @@ exports.deleteCategory = async (req, res) => {
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
  *               name:
  *                 type: string
+ *                 description: Updated name for the category
  *                 example: Updated Category Name
+ *               logo:
+ *                 type: string
+ *                 format: binary
+ *                 description: Upload an updated image file for the category logo
  *     responses:
  *       200:
  *         description: Category updated successfully
@@ -279,6 +315,8 @@ exports.deleteCategory = async (req, res) => {
  *                 message:
  *                   type: string
  *                   example: Category updated successfully
+ *                 category:
+ *                   $ref: '#/components/schemas/Category'
  *       404:
  *         description: Category not found
  *         content:

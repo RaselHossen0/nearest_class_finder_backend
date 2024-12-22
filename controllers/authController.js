@@ -10,6 +10,29 @@ const sequelize = require('../config/database'); // Import your sequelize instan
 const Class = require('../models/Class');
 const Category = require('../models/Category');
 
+const createAdminUser = async () => {
+try {
+  const adminExists = await User.findOne({ where: { email: 'admin@gmail.com' } });
+  if (!adminExists) {
+    const hashedPassword = await argon2.hash('12345678');
+    await User.create({
+      name: 'admin',
+      email: 'admin@gmail.com',
+      password: hashedPassword,
+      role: 'admin',
+      adminVerified: true
+    });
+    console.log('Admin user created');
+  } else {
+    console.log('Admin user already exists');
+  }
+} catch (error) {
+  console.log(error);
+  console.error('Failed to create admin user');
+}
+};
+
+createAdminUser();
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -90,8 +113,29 @@ exports.completeSignup = [
       const panCard = await ClassOwner.findOne({ where: { panCardNumber } });
       if (panCard) {
         return res.status(200).json({ error: 1, message: 'Pan card number already exists' });
+      } 
+       console.log(coordinates);
+      const parsedCoordinates = coordinates.split(',').map(coord => parseFloat(coord.trim()));
+      console.log(parsedCoordinates);
+      if (parsedCoordinates.length !== 2 || isNaN(parsedCoordinates[0]) || isNaN(parsedCoordinates[1])) {
+        return res.status(200).json({ error: 1, message: 'Invalid coordinates format' });
       }
 
+      // Create the class record
+      const geoCoordinates = {
+        type: 'Point',
+        coordinates: parsedCoordinates, // Ensure coordinates are passed as an array [longitude, latitude]
+      };
+      const newClass = await Class.create({
+        name: className,
+        description,
+        location,
+        coordinates: geoCoordinates,
+        price,
+        rating,
+        categoryId,
+       
+      }, { transaction });
       // Create ClassOwner record
       const classOwner = await ClassOwner.create({
         userId,
@@ -105,31 +149,12 @@ exports.completeSignup = [
         certificatesFile: req.files.certificatesFile
           ? req.files.certificatesFile.map(file => file.path).join(',')
           : null,
+        classId: newClass.id,
       }, { transaction });
       // Parse coordinates correctly
-      console.log(coordinates);
-      const parsedCoordinates = coordinates.split(',').map(coord => parseFloat(coord.trim()));
-      console.log(parsedCoordinates);
-      if (parsedCoordinates.length !== 2 || isNaN(parsedCoordinates[0]) || isNaN(parsedCoordinates[1])) {
-        return res.status(200).json({ error: 1, message: 'Invalid coordinates format' });
-      }
+    
 
-      // Create the class record
-      const geoCoordinates = {
-        type: 'Point',
-        coordinates: parsedCoordinates, // Ensure coordinates are passed as an array [longitude, latitude]
-      };
-
-      const newClass = await Class.create({
-        name: className,
-        description,
-        location,
-        coordinates: geoCoordinates,
-        price,
-        rating,
-        categoryId,
-        ownerId: userId,
-      }, { transaction });
+     
 
       await transaction.commit(); // Commit transaction
 

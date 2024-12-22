@@ -7,6 +7,10 @@ const Category = sequelize.define('Category', {
     type: DataTypes.STRING, 
     allowNull: false, 
     unique: true 
+  },
+  logo: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 });
 

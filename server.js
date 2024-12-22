@@ -6,8 +6,13 @@ const swaggerSpec = require('./swagger');
 const path = require('path');
 const cors = require('cors');
 const http = require('http');  // Import the http module
-const socketIo = require('socket.io');  // Import socket.io
 
+const subscriptionRoutes = require('./routes/subcriptionRoute');
+const featuresRoutes = require('./routes/featureRoute');
+
+const setupSocket = require('./socket/index'); // Import the setupSocket function
+
+// Subscription API routes
 // Import route modules
 const authRoutes = require('./routes/authRoute');
 const classRoutes = require('./routes/classRoute');
@@ -18,6 +23,11 @@ const mediaRoutes = require('./routes/mediaRoute'); // Import media routes
 const adminRoutes = require('./routes/admin/adminRoutes');
 const app = express();
 const PORT = process.env.PORT || 8000;
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 // Middleware
 app.use(express.json());
@@ -25,7 +35,6 @@ app.use(express.json());
 
 // Middleware for parsing form-data (Multer handles file uploads in specific routes)
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -34,42 +43,21 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/auth', authRoutes);
 app.use('/classes', classRoutes);
 app.use('/events', eventRoutes);
-app.use('/chat', chatRoutes);
+app.use('/chats', chatRoutes);
 app.use('/categories', categoryRoutes);
 app.use('/media', mediaRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/admin', adminRoutes);
 
-
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/features', featuresRoutes);
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);  // Create HTTP server
-const io = socketIo(server);  // Attach Socket.IO to the HTTP server
+const io = setupSocket(server);
 
 // Expose io instance for controllers
-require('./socket')(io);
 
-io.on('connection', (socket) => {
-  console.log('New client connected');
-
-  socket.on('joinRoom', (chatId) => {
-    socket.join(chatId);  // User joins a specific chat room
-  });
-
-  socket.on('message', async (data) => {
-    const { chatId, senderId, content } = data;
-
-    // Save message to the database
-    const message = await Message.create({ chatId, senderId, content });
-    
-    // Emit the message to users in the chat room
-    io.to(chatId).emit('newMessage', message);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
-  });
-});
 
 // Root route
 app.get('/', (req, res) => {
