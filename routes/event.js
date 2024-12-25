@@ -6,6 +6,7 @@ const {
   updateEvent,
   deleteEvent,
   getEventsForClass,
+  uploadEventMedia
 } = require('../controllers/eventController');
 const upload = require('../services/multer'); // Assuming you're using multer for file upload
 const verifyToken = require('../middleware/middleware');
@@ -18,4 +19,6 @@ router.post('/', verifyToken, upload.array('files', 10), createEvent); // Create
 router.put('/:id', verifyToken, updateEvent);             // Update an event
 router.delete('/:id', verifyToken, deleteEvent);          // Delete an event
 router.get('/class/:classId', getEventsForClass); // Get events for a class
+router.post('/:id/media', verifyToken, upload.array('files', 10), uploadEventMedia); // Upload media for an event
+
 module.exports = router;

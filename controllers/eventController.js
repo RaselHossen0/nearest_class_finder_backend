@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 const Class = require('../models/Class');
+const e = require('express');
+const { error } = require('console');
 exports.getEvents = async (req, res) => {
   try {
     const events = await Event.findAll({ include: EventMedia });
@@ -101,6 +103,35 @@ exports.deleteEvent = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete event' });
   }
 };
+//upload event media
+exports.uploadEventMedia = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const event = await Event.findByPk(id);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
+    // console.log(req.files);
+    const updatedEventMediaInstances = req.files.map((file, index) => ({
+      url: file.path,
+      type: file.mimetype,
+      eventId: event.id,
+    }));
+    await EventMedia.bulkCreate(updatedEventMediaInstances);
+    res.json({error:0, message: 'Media uploaded successfully' });
+  } catch (error) {
+    if (req.files && req.files.length > 0) {
+      req.files.forEach((file) => {
+        fs.unlinkSync(file.path);
+      });
+
+    }
+    // console.log(error);
+    // await EventMedia.destroy({ where: { eventId: id } });
+    // await fs.unlinkSync(req.files[0].path);
+    res.status(500).json({ error: 'Failed to upload media' });
+  }
+};
+
 
 //get events for a class
 exports.getEventsForClass = async (req, res) => {
@@ -170,6 +201,42 @@ exports.getEventsForClass = async (req, res) => {
  *         description: Event not found
  *       500:
  *         description: Failed to retrieve event
+ */
+
+//upload event media
+/**
+ * @swagger
+ * /events/{id}/media:
+ *   post:
+ *     summary: Upload media for an event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: The event ID
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Media uploaded successfully
+ *       404:
+ *         description: Event not found
+ *       500:
+ *         description: Failed to upload media
  */
 
 /**
