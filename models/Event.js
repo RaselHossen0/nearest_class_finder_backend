@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const User = require('./User');
 
 const Event = sequelize.define('Event', {
   title: { type: DataTypes.STRING, allowNull: false },
@@ -15,7 +16,24 @@ const EventMedia = sequelize.define('EventMedia', {
   eventId: { type: DataTypes.INTEGER, references: { model: 'Events', key: 'id' } },
 });
 
+const EventUser = sequelize.define('EventUser', {
+  eventId: { type: DataTypes.INTEGER, references: { model: 'Events', key: 'id' } },
+  userId: { type: DataTypes.INTEGER, references: { model: 'Users', key: 'id' } },
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['eventId', 'userId']
+    }
+  ]
+});
+
+Event.hasMany(EventUser, { foreignKey: 'eventId' });
+EventUser.belongsTo(Event, { foreignKey: 'eventId' });
+EventUser.belongsTo(User, { foreignKey: 'userId' });
+
+
 Event.hasMany(EventMedia, { foreignKey: 'eventId' });
 EventMedia.belongsTo(Event, { foreignKey: 'eventId' });
 
-module.exports = { Event,EventMedia };
+module.exports = { Event,EventMedia ,EventUser};

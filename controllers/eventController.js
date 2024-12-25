@@ -1,7 +1,7 @@
-const { Event, EventMedia } = require('../models/Event');
+const { Event, EventMedia,EventUser } = require('../models/Event');
 const fs = require('fs');
 const path = require('path');
-
+const User = require('../models/User');
 const Class = require('../models/Class');
 const e = require('express');
 const { error } = require('console');
@@ -132,6 +132,46 @@ exports.uploadEventMedia = async (req, res) => {
   }
 };
 
+//join event 
+exports.joinEvent = async (req, res) => {
+  try {
+    const { eventId ,userId} = req.params;
+    const event = await Event.findByPk(eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    await EventUser.create({ eventId: eventId, userId });
+    res.json({ message: 'User joined event successfully' });
+    } catch (error) {
+    res.status(500).json({ error: 'Failed to join event' });
+    }
+  };
+
+  //get users who joined an event
+  exports.getUsersForEvent = async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const users = await EventUser.findAll({ where: { eventId }, 
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'name', 'email','profileImage']
+          }
+
+        ],
+        
+      
+      });
+
+      if (users.length === 0) return res.status(404).json({ error: 'No users found for this event' });
+
+      res.json(users);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ error: 'Failed to retrieve users for event' });
+    }
+  };
 
 //get events for a class
 exports.getEventsForClass = async (req, res) => {
@@ -411,4 +451,66 @@ exports.getEventsForClass = async (req, res) => {
  *         description: No events found for this class
  *       500:
  *         description: Failed to retrieve events
+ */
+
+/**
+ * @swagger
+ * /events/join/{eventId}/{userId}:
+ *   post:
+ *     summary: Join an event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: The event ID
+ *       - in: path
+ *         name: userId
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: The user ID
+ *     responses:
+ *       200:
+ *         description: User joined event successfully
+ *       404:
+ *         description: Event or User not found
+ *       500:
+ *         description: Failed to join event
+ */
+
+//get users who joined an event
+
+/**
+ * @swagger
+ * /events/{eventId}/users:
+ *   get:
+ *     summary: Get users who joined an event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: The event ID
+ *     responses:
+ *       200:
+ *         description: A list of users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/User'
+ *       404:
+ *         description: No users found for this event
+ *       500:
+ *         description: Failed to retrieve users for event
  */
