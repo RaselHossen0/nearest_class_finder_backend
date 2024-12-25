@@ -114,13 +114,19 @@ exports.completeSignup = [
       if (panCard) {
         return res.status(200).json({ error: 1, message: 'Pan card number already exists' });
       } 
-       console.log(coordinates);
-      const parsedCoordinates = coordinates.split(',').map(coord => parseFloat(coord.trim()));
-      console.log(parsedCoordinates);
-      if (parsedCoordinates.length !== 2 || isNaN(parsedCoordinates[0]) || isNaN(parsedCoordinates[1])) {
-        return res.status(200).json({ error: 1, message: 'Invalid coordinates format' });
+      let parsedCoordinates;
+      try {
+        parsedCoordinates = JSON.parse(coordinates); // Parse coordinates string into an array
+      } catch (err) {
+        return res.status(400).json({ error: 'Invalid coordinates format' });
       }
-
+  
+      if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2) {
+        return res.status(400).json({ error: 'Coordinates must be an array of [latitude, longitude]' });
+      }
+  
+      const [latitude, longitude] = parsedCoordinates;
+      console.log(latitude, longitude);
       // Create the class record
       const geoCoordinates = {
         type: 'Point',

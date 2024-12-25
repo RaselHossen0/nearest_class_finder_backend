@@ -5,6 +5,8 @@ const Media = require('../models/Media');
 const ClassOwner = require('../models/ClassOwner');
 const User = require('../models/User');
 const { Op } = require('sequelize');
+const geolib = require('geolib'); 
+const haversine = require('haversine');
 
 
 exports.getAllClasses = async (req, res) => {
@@ -52,51 +54,79 @@ exports.getAllClasses = async (req, res) => {
   }
 };
 
+// Install with `npm install geolib`
+
 exports.getAllClass = async (req, res) => {
   try {
     console.log('Get all classes');
-    const { page = 1, limit = 10, search = '' } = req.query; // Pagination and search query
+    const { page = 1, limit = 10, search = '', coordinates = '[]' } = req.query; // Default coordinates as a string
     const offset = (page - 1) * limit;
-   
-    // const allClasses = await ClassOwner.findAll();
-    // console.log(allClasses);
 
-    // Fetch classes with optional search
-    const { count, rows: classes } = await Class.findAndCountAll({
+    // Parse coordinates
+    let parsedCoordinates;
+    try {
+      parsedCoordinates = JSON.parse(coordinates); // Parse coordinates string into an array
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid coordinates format' });
+    }
+
+    if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2) {
+      return res.status(400).json({ error: 'Coordinates must be an array of [latitude, longitude]' });
+    }
+
+    const [latitude, longitude] = parsedCoordinates;
+    // console.log('Latitude:', latitude, 'Longitude:', longitude);
+
+
+    // Fetch all classes with their coordinates
+    const allClasses = await Class.findAll({
       where: {
-        // Search by mobile number or experience (example)
-        name: { [Op.like]: `%${search}%` }
-
+        name: { [Op.like]: `%${search}%` }, // Optional search filter
       },
       include: [
-        {
-          model: Category, // Include associated User data
-          // attributes: ['id', 'name'], // Only fetch selected User attributes
-        },
-        {
-          model: Media, // Include associated Class data
-        //  attributes: ['id', 'name', 'description', 'location', 'price', 'rating'], // Only fetch selected Class attributes
-        // }
-        },
-        {
-          model: ClassOwner, // Include associated Class data
-         attributes: ['userId'], // Only fetch selected Class attributes
-        }
-       
+        { model: Category },
+        { model: Media },
+        { model: ClassOwner, attributes: ['userId'] },
       ],
-      offset,
-      limit: parseInt(limit),
     });
-    //return classes with classOwner
-    const classOwner = await ClassOwner.findAll();
-    console.log(classOwner);
-    
+    // console.log('All classes:', allClasses);
 
-    res.status(200).json({  
-      total: count,
+    // Filter classes by proximity (e.g., within 10 km)
+    const filteredClasses = allClasses.filter((classItem) => {
+      const cords= classItem.coordinates['coordinates'];
+       
+
+      const classCoordinates = {
+        latitude: cords[0],
+        longitude: cords[1],
+      };
+      console.log('Class Coordinates:', classCoordinates);
+      console.log('latitude:', latitude, 'longitude:', longitude);
+      console.log('Distance:', geolib.getDistance(
+        { latitude, longitude },
+        classCoordinates
+      
+      ));
+      const start = { latitude, longitude };
+      const end = classCoordinates;
+      const distance = haversine(start, end, { unit: 'meter' });
+      console.log('Distance2:', distance);
+
+      return (
+        geolib.getDistance(
+          { latitude, longitude },
+          classCoordinates
+        ) <= 2000000 // 10 km radius
+      );
+    });
+
+    const paginatedClasses = filteredClasses.slice(offset, offset + limit);
+
+    res.status(200).json({
+      total: filteredClasses.length,
       page: parseInt(page),
-      totalPages: Math.ceil(count / limit),
-      classes,
+      totalPages: Math.ceil(filteredClasses.length / limit),
+      classes: paginatedClasses,
     });
   } catch (error) {
     console.error('Error fetching classes:', error);
