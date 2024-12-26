@@ -303,6 +303,8 @@ exports.getEventsForClass = async (req, res) => {
  *                 type: string
  *               classId:
  *                 type: integer
+ *               location:
+ *                 type: string       
  *               files:
  *                 type: array
  *                 items:

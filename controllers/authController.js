@@ -9,6 +9,7 @@ const ClassOwner = require('../models/ClassOwner');
 const sequelize = require('../config/database'); // Import your sequelize instance
 const Class = require('../models/Class');
 const Category = require('../models/Category');
+const fs = require('fs');
 
 const createAdminUser = async () => {
 try {
@@ -268,6 +269,47 @@ exports.getUserDetails = async (req, res) => {
   }
 };
 
+exports.changeProfileImage = async (req, res) => {
+  try {
+    const user = req.user;
+    console.log(user);
+    const userId = user.id;
+    const updatedUser = await User.findByPk(userId);
+    if (!updatedUser) {
+      return res.status(404).json({ error: 1, message: 'User not found' });
+    }
+
+
+    try {
+     
+    //delete old profile image
+    if (updatedUser.profileImage !== '/uploads/default.jpg') {
+      const oldImagePath = path.join(__dirname, '..', updatedUser.profileImage);
+      fs.unlink(oldImagePath, (err) => {
+        if (err) {
+          console.error('Failed to delete old profile image:', err);
+        } else {
+          console.log('Old profile image deleted successfully');
+        }
+      });
+    }
+    } catch (error) {
+      console.error('Failed to delete old profile image:', error);
+    }
+
+    if (req.file) {
+      updatedUser.profileImage = req.file.path;
+      await updatedUser.save();
+    }
+        
+
+    res.status(200).json({ error: 0, message: 'Profile image updated successfully', updatedUser });
+  } catch (error) {
+    console.error(error);
+    res.status(200).json({ error: 1, message: 'Failed to update profile image' });
+  }
+}
+
 /**
  * @swagger
  * /auth/class-owner/complete-signup:
@@ -487,4 +529,36 @@ exports.getUserDetails = async (req, res) => {
  *         description: Invalid email or password
  *       500:
  *         description: Login failed
+ */
+
+/**
+ * @swagger
+ * /auth/change-profile-image:
+ *   post:
+ *     summary: Change the profile image of the user
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *                 description: The profile image file
+ *     responses:
+ *       200:
+ *         description: Profile image updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Profile image updated successfully
  */

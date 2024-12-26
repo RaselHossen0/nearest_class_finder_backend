@@ -2,28 +2,44 @@
 const { uploadFile } = require('./couldStorage');  // Corrected the import statement
 const Media = require('../models/Media');
 const Class = require('../models/Class');
+  // Import the cloud storage service
+const fs = require('fs').promises;
 
-// Controller function to upload media
+// Function to handle file upload to S3
+async function handleFileUpload(file) {
+  const filePath = file.path;
+  const fileBuffer = await fs.readFile(filePath); // Read the file as a buffer
+  const fileUrl = await uploadFile(fileBuffer, file.originalname, file.mimetype);
+  
+  // Optionally delete the file from local storage after processing
+  await fs.unlink(filePath);
+  
+  return fileUrl;
+}
+
+// Modify the uploadMedia function to handle video or reel type
 exports.uploadMedia = async (req, res) => {
   try {
-    const { classId } = req.params;  // Get classId from route parameter
-    const { title, description, tags, type } = req.body;  // Get metadata from request body
-    const file = req.file;  // Get uploaded file from request
-    // console.log(file);
-    console.log(req.body);
-    console.log(req.params);
+    const { classId } = req.params;
+    const { title, description, tags, type } = req.body;
+    const file = req.file;
 
-    // Check if the class exists
+    if (!file) {
+      return res.status(400).json({ error: 'File is required' });
+    }
+
     const classDetail = await Class.findByPk(classId);
     if (!classDetail) {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    // Use the cloud storage service to upload the file to S3
-    // const fileUrl = await uploadFile(file.buffer, file.originalname, file.mimetype);
-    const  fileUrl = `/uploads/${req.file.filename}`;
+    let fileUrl;
+    if (type === 'video' || type === 'reel') {
+      fileUrl = await handleFileUpload(file);
+    } else {
+      fileUrl = file.path; // Use the file path directly for disk storage
+    }
 
-    // Create a new media record in the database
     const media = await Media.create({
       type,
       url: fileUrl,
@@ -31,22 +47,15 @@ exports.uploadMedia = async (req, res) => {
       description,
       tags,
       upload_date: new Date(),
-      classId
+      classId,
     });
 
     res.status(201).json({ message: 'Media uploaded successfully', media });
   } catch (error) {
     console.error(error);
-    // console.log(req.body);
-    //delete media if upload fails
-    // await Media.destroy({ where: { url: fileUrl } });
-    // //also delete from local storage
-    // fs.unlinkSync(fileUrl);
-    
     res.status(500).json({ error: 'Failed to upload media' });
   }
 };
-
 
 /**
  * @swagger

@@ -1,6 +1,5 @@
 // services/cloudStorage.js
 const AWS = require('aws-sdk');
-const fs = require('fs');
 
 
 // Configure AWS with your access and secret keys
@@ -24,7 +23,10 @@ const uploadFile = async (fileBuffer, fileName, fileType) => {
   try { 
 
    //store locally for testing
-    
+  // Ensure fileBuffer is not empty
+  if (!fileBuffer) {
+    throw new Error('File buffer is required');
+  }
    
 
     const params = {

@@ -6,6 +6,7 @@ const Event = sequelize.define('Event', {
   title: { type: DataTypes.STRING, allowNull: false },
   date: { type: DataTypes.DATE },
   description: { type: DataTypes.TEXT },
+  location : { type: DataTypes.STRING },
   classId: { type: DataTypes.INTEGER, references: { model: 'Classes', key: 'id' } },
 });
 

@@ -5,6 +5,6 @@ const verifyToken = require('../middleware/middleware');
 const upload = require('../services/multer'); // Assuming you're using multer for file upload
 
 // Upload media file
-router.post('/upload/:classId', verifyToken, upload.single('mediaFile'), uploadMedia);
+router.post('/upload/:classId',upload.single('mediaFile'), uploadMedia);
 
 module.exports = router;
