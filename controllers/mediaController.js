@@ -21,7 +21,8 @@ async function handleFileUpload(file) {
 exports.uploadMedia = async (req, res) => {
   try {
     const { classId } = req.params;
-    const { title, description, tags, type } = req.body;
+    const { title, description, tags, type,isCoverImage } = req.body;
+    console.log(req.body);
     const file = req.file;
 
     if (!file) {
@@ -47,6 +48,7 @@ exports.uploadMedia = async (req, res) => {
       description,
       tags,
       upload_date: new Date(),
+      isCoverImage,
       classId,
     });
 
@@ -91,6 +93,9 @@ exports.uploadMedia = async (req, res) => {
  *               description:
  *                 type: string
  *                 description: Description of the media
+ *               isCoverImage:
+ *                 type: boolean
+ *                 description: is media a cover image
  *               tags:
  *                 type: string
  *                 description: Tags for the media

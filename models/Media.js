@@ -15,6 +15,11 @@ const Media = sequelize.define('Media', {
     values: ['photo', 'video', 'reel'],
     allowNull: false
   },
+  isCoverImage: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    allowNull: false
+  },
   // URL of the media file
   url: {
     type: DataTypes.STRING,

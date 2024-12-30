@@ -135,18 +135,21 @@ exports.uploadEventMedia = async (req, res) => {
 //join event 
 exports.joinEvent = async (req, res) => {
   try {
-    const { eventId ,userId} = req.params;
+    const { eventId, userId } = req.params;
     const event = await Event.findByPk(eventId);
-    if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (!event) return res.status(404).json({ error: 1, message: 'Event not found' });
     const user = await User.findByPk(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    
-    await EventUser.create({ eventId: eventId, userId });
-    res.json({ message: 'User joined event successfully' });
-    } catch (error) {
-    res.status(500).json({ error: 'Failed to join event' });
-    }
-  };
+    if (!user) return res.status(404).json({ error: 1, message: 'User not found' });
+    // Check if user already joined event
+    const userEvent = await EventUser.findOne({ where: { eventId, userId } });
+    if (userEvent) return res.status(400).json({ error: 1, message: 'User already joined event',isJoined:true });
+    await EventUser.create({ eventId, userId });
+    res.json({ error: 0, message: 'User joined event successfully' ,isJoined:true});
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 1, message: 'Failed to join event' });
+  }
+};
 
   //get users who joined an event
   exports.getUsersForEvent = async (req, res) => {
