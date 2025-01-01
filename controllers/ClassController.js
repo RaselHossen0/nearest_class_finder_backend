@@ -58,68 +58,94 @@ exports.getAllClasses = async (req, res) => {
 
 exports.getAllClass = async (req, res) => {
   try {
-    console.log('Get all classes');
-    const { page = 1, limit = 10, search = '', coordinates = '[]' } = req.query; // Default coordinates as a string
+    console.log('Get all classes',req.query);
+    const {
+      page = 1,
+      limit = 3,
+      search = '',
+      coordinates = '[]',
+      minPrice,
+      maxPrice,
+      category,
+      distance = 400000, // Default to 400 km if not provided
+    } = req.query;
+
     const offset = (page - 1) * limit;
 
     // Parse coordinates
     let parsedCoordinates;
     try {
-      parsedCoordinates = JSON.parse(coordinates); // Parse coordinates string into an array
+      parsedCoordinates = JSON.parse(coordinates);
     } catch (err) {
       return res.status(400).json({ error: 'Invalid coordinates format' });
     }
 
     if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2) {
-      return res.status(400).json({ error: 'Coordinates must be an array of [latitude, longitude]' });
+      return res.status(400).json({
+        error: 'Coordinates must be an array of [latitude, longitude]',
+      });
     }
 
     const [latitude, longitude] = parsedCoordinates;
-    // console.log('Latitude:', latitude, 'Longitude:', longitude);
+
+    // Build search conditions
+    const searchConditions = {};
+
+    if (search) {
+      searchConditions[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { description: { [Op.like]: `%${search}%` } },
+        { location: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    if (minPrice) {
+      searchConditions.price = { [Op.gte]: parseFloat(minPrice) };
+    }
+
+    if (maxPrice) {
+      searchConditions.price = {
+        ...searchConditions.price,
+        [Op.lte]: parseFloat(maxPrice),
+      };
+    }
+
+    if (category) {
+      console.log('Category:', category);
+      searchConditions.categoryId = category; // Assuming `categoryId` maps to a valid category
+    }
 
 
-    // Fetch all classes with their coordinates
+    // Fetch all classes with filters applied
     const allClasses = await Class.findAll({
-      where: {
-        name: { [Op.like]: `%${search}%` }, // Optional search filter
-      },
+      where: searchConditions,
       include: [
         { model: Category },
         { model: Media },
         { model: ClassOwner, attributes: ['userId'] },
       ],
     });
-    // console.log('All classes:', allClasses);
+     console.log(allClasses.length);
 
-    // Filter classes by proximity (e.g., within 10 km)
+    // Filter classes by proximity
     const filteredClasses = allClasses.filter((classItem) => {
-      const cords= classItem.coordinates['coordinates'];
-       
+      const cords = classItem.coordinates['coordinates'];
 
       const classCoordinates = {
         latitude: cords[0],
         longitude: cords[1],
       };
-      console.log('Class Coordinates:', classCoordinates);
-      console.log('latitude:', latitude, 'longitude:', longitude);
-      console.log('Distance:', geolib.getDistance(
-        { latitude, longitude },
-        classCoordinates
-      
-      ));
+
       const start = { latitude, longitude };
       const end = classCoordinates;
-      const distance = haversine(start, end, { unit: 'meter' });
-      console.log('Distance2:', distance);
-
-      return (
-        geolib.getDistance(
-          { latitude, longitude },
-          classCoordinates
-        ) <= 2000000 // 10 km radius
-      );
+      const distanceToClass = geolib.getDistance(start, end); // Distance in meters
+      // console.log(distanceToClass, distance);
+      // console.log(distanceToClass <= parseInt(distance));
+      return distanceToClass/1000 <= parseInt(distance);
     });
+    // console.log(filteredClasses);
 
+    // Paginate the filtered results
     const paginatedClasses = filteredClasses.slice(offset, offset + limit);
 
     res.status(200).json({

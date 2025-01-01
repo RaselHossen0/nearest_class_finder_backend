@@ -117,17 +117,42 @@ exports.completeSignup = [
       } 
       let parsedCoordinates;
       try {
-        parsedCoordinates = JSON.parse(coordinates); // Parse coordinates string into an array
+        
+      
+        // Check if the input is a JSON string or a comma-separated string
+        if (typeof coordinates === 'string') {
+          if (coordinates.includes(',')) {
+            // Handle comma-separated format like "12,23"
+            parsedCoordinates = coordinates.split(',').map((val) => parseFloat(val.trim()));
+          } else {
+            // Attempt to parse as JSON
+            parsedCoordinates = JSON.parse(coordinates);
+          }
+        } else {
+          // Assume the input is already parsed (e.g., when directly sent as an array)
+          parsedCoordinates = coordinates;
+        }
+      
+        // Validate the parsedCoordinates
+        if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2) {
+          return res.status(400).json({ error: 'Coordinates must be an array of [latitude, longitude]' });
+        }
+      
+        const [latitude, longitude] = parsedCoordinates.map((val) => {
+          if (isNaN(val)) {
+            throw new Error('Invalid number in coordinates');
+          }
+          return val;
+        });
+      
+        console.log('Parsed Coordinates:', { latitude, longitude });
+      
+        // Proceed with your logic using latitude and longitude
       } catch (err) {
+        console.error('Error parsing coordinates:', err.message);
         return res.status(400).json({ error: 'Invalid coordinates format' });
       }
-  
-      if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2) {
-        return res.status(400).json({ error: 'Coordinates must be an array of [latitude, longitude]' });
-      }
-  
-      const [latitude, longitude] = parsedCoordinates;
-      console.log(latitude, longitude);
+      // console.log(parsedCoordinates);
       // Create the class record
       const geoCoordinates = {
         type: 'Point',
@@ -174,6 +199,47 @@ exports.completeSignup = [
     } catch (error) {
       await transaction.rollback(); // Rollback transaction in case of error
       console.error(error);
+      //delete all files if transaction fails
+      if (req.files) {
+        req.files.aadhaarCardFile.forEach((file) => {
+          fs.unlink(file.path, (err) => {
+            if (err) {
+              console.error('Failed to delete Aadhaar card file:', err);
+            } else {
+              console.log('Aadhaar card file deleted successfully');
+            }
+          });
+        });
+        req.files.panCardFile.forEach((file) => {
+          fs.unlink(file.path, (err) => {
+            if (err) {
+              console.error('Failed to delete PAN card file:', err);
+            } else {
+              console.log('PAN card file deleted successfully');
+            }
+          });
+        });
+        req.files.photographFile.forEach((file) => {
+          fs.unlink(file.path, (err) => {
+            if (err) {
+              console.error('Failed to delete photograph file:', err);
+            } else {
+              console.log('Photograph file deleted successfully');
+            }
+          });
+        });
+        if (req.files.certificatesFile) {
+          req.files.certificatesFile.forEach((file) => {
+            fs.unlink(file.path, (err) => {
+              if (err) {
+                console.error('Failed to delete certificates file:', err);
+              } else {
+                console.log('Certificates file deleted successfully');
+              }
+            });
+          });
+        }
+      }
       res.status(200).json({ error: 1, message: `Failed to complete signup: ${error.message}` });
     }
   },
@@ -679,7 +745,9 @@ exports.deleteUser= async (req, res) => {
  *                 type: string
  *                 description: The address or location of the class
  *               coordinates:
- *                 type: string
+ *                 type: array
+ *                 items:
+ *                   type: number
  *                 description: The GeoJSON coordinates of the class as a JSON array [longitude, latitude]
  *               price:
  *                 type: number
