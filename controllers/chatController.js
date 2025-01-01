@@ -3,7 +3,8 @@ const User = require('../models/User');
 const Chat = require('../models/Chat');
 const Message = require('../models/Message');
 const { route } = require('../routes/classRoute');
-
+const { Op } = require('sequelize');
+const ClassOwner = require('../models/ClassOwner');
 
 // Send a message
 exports.sendMessage = async (req, res) => {
@@ -55,16 +56,22 @@ exports.getChats = async (req, res) => {
   const { userId } = req.params;
   try {
     const chats = await Chat.findAll({
-      where: { userId },
+      where: {
+      [Op.or]: [
+       
+        { classOwnerId: userId }
+      ]
+      },
       include: [
-        { model: User, as: 'ClassOwner', attributes: ['name', 'email'] },
+         { model: User, attributes: ['id','name', 'email','profileImage'] },
         { model: Message, limit: 1, order: [['timestamp', 'DESC']] },
+       
       ],
     });
     return res.status(200).json(chats);
-  } catch (error) {
+    } catch (error) {
     return res.status(500).json({ error: error.message });
-  }
+    }
 };
 exports.getMessages = async (req, res) => {
   const { chatId } = req.params;
@@ -125,7 +132,7 @@ exports.getMessages = async (req, res) => {
 
 /**
  * @swagger
- * /chats/{userId}:
+ * /chats/user/{userId}:
  *   get:
  *     summary: Get all chats for a user
  *     description: Retrieve all chat conversations for a specific user.
