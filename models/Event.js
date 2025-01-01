@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const User = require('./User');
-
+const Class = require('./Class');
 const Event = sequelize.define('Event', {
   title: { type: DataTypes.STRING, allowNull: false },
   date: { type: DataTypes.DATE },
@@ -36,5 +36,9 @@ EventUser.belongsTo(User, { foreignKey: 'userId' });
 
 Event.hasMany(EventMedia, { foreignKey: 'eventId' });
 EventMedia.belongsTo(Event, { foreignKey: 'eventId' });
+Event.belongsTo(Class, { foreignKey: 'classId' });
+Class.hasMany(Event, { foreignKey: 'classId' });
 
+Class.belongsTo(User, { foreignKey: 'ownerId' }); // Assuming ownerId links Class to User
+User.hasMany(Class, { foreignKey: 'ownerId' });
 module.exports = { Event,EventMedia ,EventUser};

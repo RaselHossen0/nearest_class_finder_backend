@@ -5,11 +5,43 @@ const User = require('../models/User');
 const Class = require('../models/Class');
 const e = require('express');
 const { error } = require('console');
+const ClassOwner = require('../models/ClassOwner');
 exports.getEvents = async (req, res) => {
+  const { page = 1, limit = 10 } = req.query; // Default to page 1, 10 items per page
+  const offset = (page - 1) * limit;
+
   try {
-    const events = await Event.findAll({ include: EventMedia });
-    res.json(events);
+    const events = await Event.findAndCountAll({
+      include: [
+        {
+          model: EventMedia,
+          // attributes: ['url', 'type'],
+        },
+        {
+          model: Class,
+          // include:[
+          //   {
+          //     model:ClassOwner
+          //   }
+          // ]
+            attributes: ['name','id'], // Assuming `name` is a column in the `Classes` table
+         
+        },
+        
+      ],
+      limit: parseInt(limit), // Convert to number
+      offset: parseInt(offset), // Convert to number
+      order: [['date', 'DESC']], // Order events by date (latest first)
+    });
+
+    res.json({
+      total: events.count, // Total number of events
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(events.count / limit),
+      data: events.rows, // Paginated event data
+    });
   } catch (error) {
+    console.error('Error fetching events:', error);
     res.status(500).json({ error: 'Failed to retrieve events' });
   }
 };
