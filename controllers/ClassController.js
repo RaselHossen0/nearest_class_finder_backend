@@ -122,7 +122,7 @@ exports.getAllClass = async (req, res) => {
       include: [
         { model: Category },
         { model: Media },
-        { model: ClassOwner, attributes: ['userId'] },
+        { model: ClassOwner, attributes: ['userId','id'] },
       ],
     });
      console.log(allClasses.length);

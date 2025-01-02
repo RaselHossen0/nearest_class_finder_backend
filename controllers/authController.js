@@ -324,7 +324,7 @@ exports.getUserDetails = async (req, res) => {
     if (user.role === 'class_owner') {
       const classOwner = await ClassOwner.findOne({ where: { userId: user.id } });
       if (classOwner) {
-        user.classOwner = classOwner;
+        res.status(200).json({ error: 0, user, classOwner });
       }
     }
 
