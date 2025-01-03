@@ -1,7 +1,6 @@
 // services/cloudStorage.js
 const AWS = require('aws-sdk');
 
-
 // Configure AWS with your access and secret keys
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,     // Your AWS Access Key
@@ -20,14 +19,11 @@ const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
  * @returns {string} - The public URL of the uploaded file
  */
 const uploadFile = async (fileBuffer, fileName, fileType) => {
-  try { 
-
-   //store locally for testing
-  // Ensure fileBuffer is not empty
-  if (!fileBuffer) {
-    throw new Error('File buffer is required');
-  }
-   
+  try {
+    // Ensure fileBuffer is not empty
+    if (!fileBuffer) {
+      throw new Error('File buffer is required');
+    }
 
     const params = {
       Bucket: BUCKET_NAME,
@@ -45,4 +41,30 @@ const uploadFile = async (fileBuffer, fileName, fileType) => {
   }
 };
 
-module.exports = { uploadFile };
+/**
+ * Deletes a file from S3
+ * @param {string} fileKey - The S3 file key (path to the file in the bucket)
+ * @returns {string} - Confirmation message
+ */
+const deleteFile = async (fileKey) => {
+  try {
+    // Ensure fileKey is provided
+    if (!fileKey) {
+      throw new Error('File key is required');
+    }
+
+    const params = {
+      Bucket: BUCKET_NAME,
+      Key: fileKey,  // The key of the file to delete
+    };
+
+    // Deleting the file from S3
+    await s3.deleteObject(params).promise();
+    return 'File successfully deleted from S3';
+  } catch (error) {
+    console.error('Error deleting from S3:', error);
+    throw new Error('Failed to delete file from cloud storage');
+  }
+};
+
+module.exports = { uploadFile, deleteFile };

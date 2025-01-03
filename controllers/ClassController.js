@@ -9,7 +9,7 @@ const geolib = require('geolib');
 const haversine = require('haversine');
 
 
-exports.getAllClasses = async (req, res) => {
+exports.getAllClasses1 = async (req, res) => {
   try {
     console.log('Get all classes');
     const { page = 1, limit = 10, search = '' } = req.query; // Pagination and search query
@@ -43,6 +43,73 @@ exports.getAllClasses = async (req, res) => {
 
 
     return res.status(200).json({
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / limit),
+      classes,
+    });
+  } catch (error) {
+    console.error('Error fetching classes:', error);
+    res.status(500).json({ error: `Failed to fetch classes: ${error.message}` });
+  }
+};
+
+exports.getAllClasses = async (req, res) => {
+  try {
+    console.log('Get all classes', req.query);
+    const {
+      page = 1,
+      limit = 5,
+      search = '',
+      minPrice,
+      maxPrice,
+      category,
+    } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    // Build search conditions
+    const searchConditions = {};
+
+    if (search) {
+      searchConditions[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { description: { [Op.like]: `%${search}%` } },
+        { location: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    if (minPrice) {
+      searchConditions.price = { [Op.gte]: parseFloat(minPrice) };
+    }
+
+    if (maxPrice) {
+      searchConditions.price = {
+        ...searchConditions.price,
+        [Op.lte]: parseFloat(maxPrice),
+      };
+    }
+
+    if (category) {
+      console.log('Category:', category);
+      searchConditions.categoryId = category;
+    }
+
+    // Fetch paginated classes
+    const { count, rows: classes } = await Class.findAndCountAll({
+      where: searchConditions,
+      include: [
+        { model: Category },
+        { model: Media },
+        { model: ClassOwner, attributes: ['userId', 'id'] },
+      ],
+      limit: parseInt(limit),
+      offset,
+      order: [['createdAt', 'DESC']],
+    });
+    console.log(classes);
+
+    res.status(200).json({
       total: count,
       page: parseInt(page),
       totalPages: Math.ceil(count / limit),

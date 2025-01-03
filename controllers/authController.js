@@ -337,6 +337,7 @@ exports.getUserDetails = async (req, res) => {
 
 exports.changeProfileImage = async (req, res) => {
   try {
+    console.log('edit profile image');  
     const user = req.user;
     console.log(user);
     const userId = user.id;
@@ -470,18 +471,35 @@ exports.editProfile = async (req, res) => {
     res.status(200).json({ error: 1, message: 'Failed to update profile' });
   }
 };
-exports.getAllUsers= async (req, res) => {
+exports.getAllUsers = async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+  const offset = (page - 1) * limit;
+
   try {
-    const users = await User.findAll();
-    if (!users) {
-      return res.status(200).json({ error: 1, message: 'Users not found' });
-    }
-    res.status(200).json({ error: 0, users });
+    const { count, rows: users } = await User.findAndCountAll({
+      offset,
+      limit: parseInt(limit),
+      attributes: { exclude: ['password'] }, // Exclude password from the result
+    });
+
+    const totalPages = Math.ceil(count / limit);
+
+    res.status(200).json({
+      error: 0,
+      users,
+      pagination: {
+        totalItems: count,
+        totalPages,
+        currentPage: parseInt(page),
+        pageSize: parseInt(limit),
+      },
+    });
   } catch (error) {
     console.error(error);
     res.status(200).json({ error: 1, message: 'Failed to get users' });
   }
-}
+};
+
 exports.deleteUser= async (req, res) => {
   const {id } = req.params;
   try {
@@ -489,6 +507,8 @@ exports.deleteUser= async (req, res) => {
     if (!user) {
       return res.status(200).json({ error: 1, message: 'User not found' });
     }
+    // Delete related records in the chats table
+    await sequelize.query('DELETE FROM chats WHERE userId = ?', { replacements: [user.id] });
     await user.destroy();
     res.status(200).json({ error: 0, message: 'User deleted successfully' });
   } catch (error) {

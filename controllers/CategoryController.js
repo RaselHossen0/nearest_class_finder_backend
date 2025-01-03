@@ -67,6 +67,7 @@ exports.updateCategory = [
 
       res.json({ message: 'Category updated successfully', category });
     } catch (error) {
+      console.log(error);
       res.status(500).json({ error: 'Failed to update category' });
     }
   },

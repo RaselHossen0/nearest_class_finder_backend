@@ -1,11 +1,9 @@
-// controllers/mediaController.js
-const { uploadFile } = require('./couldStorage');  // Corrected the import statement
+const { uploadFile, deleteFile } = require('./couldStorage');  // Corrected the import statement
 const Media = require('../models/Media');
 const Class = require('../models/Class');
-  // Import the cloud storage service
 const fs = require('fs').promises;
 
-// Function to handle file upload to S3
+// Function to handle file upload to S3 for all types of files
 async function handleFileUpload(file) {
   const filePath = file.path;
   const fileBuffer = await fs.readFile(filePath); // Read the file as a buffer
@@ -17,11 +15,11 @@ async function handleFileUpload(file) {
   return fileUrl;
 }
 
-// Modify the uploadMedia function to handle video or reel type
+// Modify the uploadMedia function to handle all file types and upload them to S3
 exports.uploadMedia = async (req, res) => {
   try {
     const { classId } = req.params;
-    const { title, description, tags, type,isCoverImage } = req.body;
+    const { title, description, tags, type, isCoverImage } = req.body;
     console.log(req.body);
     const file = req.file;
 
@@ -34,13 +32,10 @@ exports.uploadMedia = async (req, res) => {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    let fileUrl;
-    if (type === 'video' || type === 'reel') {
-      fileUrl = await handleFileUpload(file);
-    } else {
-      fileUrl = file.path; // Use the file path directly for disk storage
-    }
+    // Upload file to S3 for all file types (image, video, documents, etc.)
+    const fileUrl = await handleFileUpload(file);
 
+    // Save the media information in the database
     const media = await Media.create({
       type,
       url: fileUrl,
@@ -56,6 +51,28 @@ exports.uploadMedia = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to upload media' });
+  }
+};
+
+// Function to delete media
+exports.deleteMedia = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const media = await Media.findByPk(id);
+    if (!media) {
+      return res.status(404).json({ error: 'Media not found' });
+    }
+
+    // Delete the media file from the cloud storage (S3)
+    await deleteFile(media.url);
+
+    // Remove media record from database
+    await media.destroy();
+    res.json({ message: 'Media deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete media' });
   }
 };
 
