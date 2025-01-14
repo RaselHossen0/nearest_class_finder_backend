@@ -62,23 +62,64 @@ exports.getEventById = async (req, res) => {
 exports.createEvent = async (req, res) => {
   let newEvent;
   try {
-    const { classId, ...eventData } = req.body;
-    //find the class
+    const { classId, coordinates, ...eventData } = req.body;
+    // Find the class
     const classFound = await Class.findByPk(classId);
     if (!classFound) return res.status(404).json({ error: 'Class not found' });
-
-     newEvent = await Event.create({ ...eventData, classId });
+    let parsedCoordinates;
+    try {
+      
+    
+      // Check if the input is a JSON string or a comma-separated string
+      if (typeof coordinates === 'string') {
+        if (coordinates.includes(',')) {
+          // Handle comma-separated format like "12,23"
+          parsedCoordinates = coordinates.split(',').map((val) => parseFloat(val.trim()));
+        } else {
+          // Attempt to parse as JSON
+          parsedCoordinates = JSON.parse(coordinates);
+        }
+      } else {
+        // Assume the input is already parsed (e.g., when directly sent as an array)
+        parsedCoordinates = coordinates;
+      }
+    
+      // Validate the parsedCoordinates
+      if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2) {
+        return res.status(400).json({ error: 'Coordinates must be an array of [latitude, longitude]' });
+      }
+    
+      const [latitude, longitude] = parsedCoordinates.map((val) => {
+        if (isNaN(val)) {
+          throw new Error('Invalid number in coordinates');
+        }
+        return val;
+      });
+    
+      console.log('Parsed Coordinates:', { latitude, longitude });
+    
+      // Proceed with your logic using latitude and longitude
+    } catch (err) {
+      console.error('Error parsing coordinates:', err.message);
+      return res.status(400).json({ error: 'Invalid coordinates format' });
+    }
+    // console.log(parsedCoordinates);
+    // Create the class record
+    const geoCoordinates = {
+      type: 'Point',
+      coordinates: parsedCoordinates, // Ensure coordinates are passed as an array [longitude, latitude]
+    };
+    newEvent = await Event.create({ ...eventData, classId,coordinates: geoCoordinates });
 
     if (req.files && req.files.length > 0) {
       // Update the event media instances with the new URLs and types
-    const updatedEventMediaInstances = req.files.map((file, index) => ({
-      url: file.path,
-      type: file.mimetype,
-      eventId: newEvent.id,
-    }));
-    await EventMedia.bulkCreate(updatedEventMediaInstances);
+      const updatedEventMediaInstances = req.files.map((file) => ({
+        url: file.path,
+        type: file.mimetype,
+        eventId: newEvent.id,
+      }));
+      await EventMedia.bulkCreate(updatedEventMediaInstances);
     }
-   
 
     const createdEvent = await Event.findByPk(newEvent.id, { include: EventMedia });
     res.status(201).json(createdEvent);
@@ -89,28 +130,90 @@ exports.createEvent = async (req, res) => {
       req.files.forEach((file) => {
         fs.unlinkSync(file.path);
       });
-
     }
     // Delete event if media upload fails
     if (newEvent) {
       await Event.destroy({ where: { id: newEvent.id } });
     }
-    
-    
+
     res.status(500).json({ error: 'Failed to create event' });
   }
 };
 
+
 exports.updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await Event.update(req.body, { where: { id } });
+    const { title, date, description, location, coordinates, classId, media, users } = req.body;
 
-    if (!updated) return res.status(404).json({ error: 'Event not found' });
+    // Find the event
+    const event = await Event.findByPk(id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
 
-    res.json({ message: 'Event updated successfully' });
+    // Update individual fields if they are provided in the request
+    if (title !== undefined) event.title = title;
+    if (date !== undefined) event.date = new Date(date);
+    if (description !== undefined) event.description = description;
+    if (location !== undefined) event.location = location;
+
+    if (coordinates !== undefined) {
+      let parsedCoordinates;
+      try {
+        if (typeof coordinates === 'string') {
+          if (coordinates.includes(',')) {
+            parsedCoordinates = coordinates.split(',').map((val) => parseFloat(val.trim()));
+          } else {
+            parsedCoordinates = JSON.parse(coordinates);
+          }
+        } else {
+          parsedCoordinates = coordinates;
+        }
+
+        if (!Array.isArray(parsedCoordinates) || parsedCoordinates.length !== 2) {
+          return res.status(400).json({ error: 'Coordinates must be an array of [latitude, longitude]' });
+        }
+
+        event.coordinates = {
+          type: 'Point',
+          coordinates: [parsedCoordinates[1], parsedCoordinates[0]], // GeoJSON requires [longitude, latitude]
+        };
+      } catch (error) {
+        return res.status(400).json({ error: 'Invalid coordinates format' });
+      }
+    }
+
+    if (classId !== undefined) event.classId = classId;
+
+    // Save the updated event
+    await event.save();
+
+    // Handle related media (if provided)
+    if (Array.isArray(media)) {
+      await EventMedia.destroy({ where: { eventId: id } }); // Remove existing media
+      const mediaData = media.map((item) => ({
+        eventId: id,
+        url: item.url,
+        type: item.type,
+      }));
+      await EventMedia.bulkCreate(mediaData); // Add new media
+    }
+
+    // Handle related users (if provided)
+    if (Array.isArray(users)) {
+      await EventUser.destroy({ where: { eventId: id } }); // Remove existing event users
+      const userData = users.map((userId) => ({
+        eventId: id,
+        userId,
+      }));
+      await EventUser.bulkCreate(userData); // Add new event users
+    }
+
+    return res.json({ message: 'Event updated successfully', event });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update event' });
+    console.error('Error updating event:', error.message);
+    return res.status(500).json({ error: 'Failed to update event' });
   }
 };
 
@@ -210,13 +313,27 @@ exports.joinEvent = async (req, res) => {
 
 //get events for a class
 exports.getEventsForClass = async (req, res) => {
+  const { page = 1, limit = 10 } = req.query; // Default to page 1, 10 items per page
+  const offset = (page - 1) * limit;
+
   try {
     const { classId } = req.params;
-    const events = await Event.findAll({ where: { classId }, include: EventMedia });
+    const events = await Event.findAndCountAll({
+      where: { classId },
+      include: EventMedia,
+      limit: parseInt(limit), // Convert to number
+      offset: parseInt(offset), // Convert to number
+      order: [['date', 'DESC']], // Order events by date (latest first)
+    });
 
-    if (events.length === 0) return res.status(404).json({ error: 'No events found for this class' });
+    if (events.count === 0) return res.status(404).json({ error: 'No events found for this class' });
 
-    res.json(events);
+    res.json({
+      total: events.count, // Total number of events
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(events.count / limit),
+      data: events.rows, // Paginated event data
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to retrieve events' });
   }
@@ -339,7 +456,10 @@ exports.getEventsForClass = async (req, res) => {
  *               classId:
  *                 type: integer
  *               location:
- *                 type: string       
+ *                type: string
+ *               coordinates:
+ *                 type: string
+ *                 description: Coordinates in the format [latitude, longitude] or "latitude,longitude"
  *               files:
  *                 type: array
  *                 items:
@@ -352,10 +472,13 @@ exports.getEventsForClass = async (req, res) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Event'
+ *       400:
+ *         description: Invalid coordinates format
+ *       404:
+ *         description: Class not found
  *       500:
  *         description: Failed to create event
  */
-
 /**
  * @swagger
  * /events/{id}:
@@ -376,10 +499,40 @@ exports.getEventsForClass = async (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Event'
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               date:
+ *                 type: string
+ *                 format: date
+ *               description:
+ *                 type: string
+ *               classId:
+ *                 type: integer
+ *               coordinates:
+ *                 type: string
+ *                 description: Coordinates in the format [latitude, longitude] or "latitude,longitude"
+ *               location:
+ *                 type: string
+ *               media:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     url:
+ *                       type: string
+ *                     type:
+ *                       type: string
+ *               users:
+ *                 type: array
+ *                 items:
+ *                   type: integer
  *     responses:
  *       200:
  *         description: Event updated successfully
+ *       400:
+ *         description: Invalid coordinates format
  *       404:
  *         description: Event not found
  *       500:

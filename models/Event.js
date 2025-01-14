@@ -7,6 +7,7 @@ const Event = sequelize.define('Event', {
   date: { type: DataTypes.DATE },
   description: { type: DataTypes.TEXT },
   location : { type: DataTypes.STRING },
+  coordinates: { type: DataTypes.GEOMETRY('POINT') },
   classId: { type: DataTypes.INTEGER, references: { model: 'Classes', key: 'id' } },
 });
 

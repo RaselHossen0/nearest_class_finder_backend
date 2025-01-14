@@ -21,6 +21,8 @@ const chatRoutes = require('./routes/chat');
 const categoryRoutes = require('./routes/categoryRoutes');
 const mediaRoutes = require('./routes/mediaRoute'); // Import media routes
 const adminRoutes = require('./routes/admin/adminRoutes');
+const classRatingRoutes = require('./routes/classRatingRoutes');
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 app.use(cors({
@@ -50,6 +52,8 @@ app.use('/admin', adminRoutes);
 
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/features', featuresRoutes);
+app.use('/api/ratings', classRatingRoutes);
+
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);  // Create HTTP server
